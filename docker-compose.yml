@@ -1,12 +1,32 @@
 services:
   api:
-    # Constrói a imagem a partir do Dockerfile no diretório atual
     build: .
     container_name: api
-    ports:
-      # Mapeia a porta 8000 do host para a porta 8000 do contêiner
+    ports: 
       - "8000:8000"
     volumes:
-      # Monta o diretório atual no contêiner para desenvolvimento (hot-reload)
       - .:/app
     command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+    env_file:
+      - .env # Carrega as variáveis de ambiente do arquivo .env
+    depends_on:
+      db:
+        condition: service_healthy # Garante que a API só inicie quando o DB estiver saudável
+
+  db:
+    image: postgres:13-alpine
+    container_name: postgres_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    ports:
+      - "5432:5432"
+    env_file:
+      - .env # Usa as mesmas variáveis para configurar o banco
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
