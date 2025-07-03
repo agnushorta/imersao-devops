@@ -1,4 +1,4 @@
-# Palavras Chaves: MARVEL
+# Palavras Chaves: MARVEL ELLIS YAML
 # Use a imagem oficial do Python 3.11 como base, na versão slim para reduzir o tamanho
 FROM python:3.11-slim-buster
 
