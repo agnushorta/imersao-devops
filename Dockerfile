@@ -1,12 +1,17 @@
 # Palavras Chaves: MARVEL ELLIS YAML
-# Use a imagem oficial do Python 3.11 como base, na versão slim para reduzir o tamanho
-FROM python:3.11-slim-buster
+# Use a imagem oficial do Python na versão Alpine, que é extremamente leve.
+FROM python:3.11-alpine
 
 # Define o diretório de trabalho dentro do container
 WORKDIR /app
 
 # Copia o arquivo de requirements para o diretório de trabalho
 COPY requirements.txt .
+
+# Instala as dependências do sistema (para Alpine) necessárias para compilar o psycopg2
+# postgresql-dev: Contém os arquivos de desenvolvimento do PostgreSQL (incluindo pg_config)
+# build-base: Contém o compilador C (gcc) e outras ferramentas de build
+RUN apk add --no-cache postgresql-dev build-base
 
 # Instala as dependências do projeto usando pip
 # O argumento --no-cache-dir evita o armazenamento de cache para reduzir o tamanho da imagem
