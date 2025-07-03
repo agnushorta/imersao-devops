@@ -223,6 +223,43 @@ def delete_aluno(db_aluno: ModelAluno = Depends(get_aluno_or_404), db: Session =
 
 Essa pequena refatoração centralizou a lógica de busca, limpou os endpoints e tornou o código mais robusto.
 
+## Passo 7: Otimização Avançada - Criando Imagens Enxutas com Multi-Stage Builds
+
+Com a aplicação funcional e refatorada, demos um passo adiante na otimização do nosso ambiente Docker. Nossa imagem final, embora funcional, continha ferramentas de compilação (`build-base`, `postgresql-dev`) que são necessárias apenas durante o *build*, mas não para a *execução* da API. Isso aumenta o tamanho da imagem e sua superfície de ataque.
+
+A solução para isso é uma técnica poderosa chamada **multi-stage builds**.
+
+Reescrevemos nosso `Dockerfile` para usar dois estágios:
+
+1.  **Estágio "Builder"**: Um ambiente temporário onde instalamos todas as dependências pesadas e compilamos nossos pacotes Python.
+2.  **Estágio Final**: Uma imagem nova e limpa, para a qual copiamos apenas o código da nossa aplicação e os pacotes já compilados do estágio anterior.
+
+```dockerfile
+# /home/agnus/Documents/Pessoal/Alura/devOps/imersao-devops/Dockerfile
+
+# --- Estágio 1: O Construtor (Builder) ---
+FROM python:3.11-alpine AS builder
+WORKDIR /app
+RUN apk add --no-cache postgresql-dev build-base
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# --- Estágio 2: A Imagem Final ---
+FROM python:3.11-alpine
+WORKDIR /app
+# Instala APENAS as dependências de tempo de execução
+RUN apk add --no-cache libpq
+# Copia as dependências Python instaladas do estágio "builder"
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+# Copia o código da aplicação
+COPY . .
+EXPOSE 8000
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+```
+
+O resultado é uma imagem Docker final drasticamente menor, mais segura e mais rápida para ser distribuída, contendo apenas o essencial para a execução da nossa API.
+
 ## Conclusão
 
 A migração foi um sucesso! Passamos de uma configuração simples com SQLite para um ambiente de desenvolvimento robusto, containerizado e muito mais próximo de um ambiente de produção real.
@@ -235,5 +272,6 @@ A jornada nos ensinou sobre:
 - Como resolver problemas de compilação de pacotes em imagens Docker minimalistas como a Alpine.
 - Como a rede do Docker funciona e por que `localhost` não funciona entre contêineres.
 - Como refatorar código FastAPI usando dependências para evitar repetição (DRY).
+- Como otimizar o tamanho e a segurança das imagens Docker com a técnica de multi-stage builds.
 
 Com essa nova estrutura, o projeto está pronto para crescer com uma base de dados sólida e um ambiente de desenvolvimento confiável.
