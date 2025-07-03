@@ -7,6 +7,17 @@ from database import get_db
 
 alunos_router = APIRouter()
 
+# Função auxiliar para obter um aluno ou levantar uma exceção 404
+def get_aluno_or_404(aluno_id: int, db: Session = Depends(get_db)) -> ModelAluno:
+    """
+    Busca um aluno pelo ID no banco de dados.
+    Levanta uma exceção HTTPException 404 se o aluno não for encontrado.
+    """
+    db_aluno = db.query(ModelAluno).filter(ModelAluno.id == aluno_id).first()
+    if db_aluno is None:
+        raise HTTPException(status_code=404, detail="Aluno não encontrado")
+    return db_aluno
+
 @alunos_router.get("/alunos", response_model=List[Aluno])
 def read_alunos(db: Session = Depends(get_db)):
     """
@@ -17,7 +28,7 @@ def read_alunos(db: Session = Depends(get_db)):
     return [Aluno.from_orm(aluno) for aluno in alunos]
 
 @alunos_router.get("/alunos/{aluno_id}", response_model=Aluno)
-def read_aluno(aluno_id: int, db: Session = Depends(get_db)):
+def read_aluno(db_aluno: ModelAluno = Depends(get_aluno_or_404)):
     """
     Retorna os detalhes de um aluno específico com base no ID fornecido.
 
@@ -27,9 +38,6 @@ def read_aluno(aluno_id: int, db: Session = Depends(get_db)):
     Raises:
         HTTPException: Se o aluno não for encontrado.
     """
-    db_aluno = db.query(ModelAluno).filter(ModelAluno.id == aluno_id).first()
-    if db_aluno is None:
-        raise HTTPException(status_code=404, detail="Aluno não encontrado")
     return Aluno.from_orm(db_aluno)
 
 @alunos_router.post("/alunos", response_model=Aluno)
@@ -50,7 +58,7 @@ def create_aluno(aluno: Aluno, db: Session = Depends(get_db)):
     return Aluno.from_orm(db_aluno)
 
 @alunos_router.put("/alunos/{aluno_id}", response_model=Aluno)
-def update_aluno(aluno_id: int, aluno: Aluno, db: Session = Depends(get_db)):
+def update_aluno(aluno: Aluno, db_aluno: ModelAluno = Depends(get_aluno_or_404), db: Session = Depends(get_db)):
     """
     Atualiza os dados de um aluno existente.
 
@@ -64,10 +72,6 @@ def update_aluno(aluno_id: int, aluno: Aluno, db: Session = Depends(get_db)):
     Returns:
         Aluno: O aluno atualizado.
     """
-    db_aluno = db.query(ModelAluno).filter(ModelAluno.id == aluno_id).first()
-    if db_aluno is None:
-        raise HTTPException(status_code=404, detail="Aluno não encontrado")
-
     for key, value in aluno.dict(exclude_unset=True).items():
         setattr(db_aluno, key, value)
 
@@ -76,7 +80,7 @@ def update_aluno(aluno_id: int, aluno: Aluno, db: Session = Depends(get_db)):
     return Aluno.from_orm(db_aluno)
 
 @alunos_router.delete("/alunos/{aluno_id}", response_model=Aluno)
-def delete_aluno(aluno_id: int, db: Session = Depends(get_db)):
+def delete_aluno(db_aluno: ModelAluno = Depends(get_aluno_or_404), db: Session = Depends(get_db)):
     """
     Exclui um aluno.
 
@@ -89,10 +93,6 @@ def delete_aluno(aluno_id: int, db: Session = Depends(get_db)):
     Returns:
         Aluno: O aluno excluído.
     """
-    db_aluno = db.query(ModelAluno).filter(ModelAluno.id == aluno_id).first()
-    if db_aluno is None:
-        raise HTTPException(status_code=404, detail="Aluno não encontrado")
-
     aluno_deletado = Aluno.from_orm(db_aluno)
 
     db.delete(db_aluno)
