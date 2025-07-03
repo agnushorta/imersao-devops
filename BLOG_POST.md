@@ -1,0 +1,239 @@
+# Migrando uma API FastAPI de SQLite para PostgreSQL com Docker: Um Guia Passo a Passo
+
+Muitos projetos de software começam com uma base de dados simples como o SQLite. É leve, não requer um servidor e é perfeito para prototipagem e desenvolvimento inicial. No entanto, à medida que uma aplicação cresce, a necessidade de um sistema de banco de dados mais robusto, escalável e com suporte a concorrência se torna evidente. O PostgreSQL é uma escolha fantástica para esse próximo passo.
+
+Neste guia, vamos documentar a jornada completa de migração de uma API FastAPI que usava SQLite para o PostgreSQL, tudo isso orquestrado com Docker e Docker Compose para criar um ambiente de desenvolvimento limpo, reproduzível e pronto para produção.
+
+## Passo 1: Trocando o Conector do Banco
+
+A primeira etapa é ensinar nossa aplicação, que usa o ORM SQLAlchemy, a "falar" com o PostgreSQL. Para isso, precisamos de um *driver* de banco de dados.
+
+A biblioteca mais comum e recomendada para essa tarefa é a **`psycopg2`**.
+
+Adicionamos `psycopg2-binary` e `python-dotenv` (que usaremos para gerenciar nossas credenciais) ao nosso arquivo `requirements.txt`.
+
+```
+# requirements.txt
+...
+psycopg2-binary==2.9.2
+python-dotenv==1.1.1
+```
+
+## Passo 2: Configurando a Conexão de Forma Segura
+
+Com o driver pronto, precisamos alterar a forma como o SQLAlchemy se conecta ao banco. Em vez de apontar para um arquivo local (`escola.db`), vamos apontar para um servidor PostgreSQL. É uma prática de segurança fundamental não deixar credenciais (usuário, senha) diretamente no código. Usaremos variáveis de ambiente.
+
+Alteramos nosso arquivo `database.py`:
+
+```python
+# /home/agnus/Documents/Pessoal/Alura/devOps/imersao-devops/database.py
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv
+import os
+
+# Carrega as variáveis de ambiente do arquivo .env
+load_dotenv()
+
+# Configuração da URL de conexão com o PostgreSQL a partir das variáveis de ambiente
+DB_USER = os.getenv("POSTGRES_USER")
+DB_PASSWORD = os.getenv("POSTGRES_PASSWORD")
+DB_HOST = os.getenv("POSTGRES_HOST", "localhost")
+DB_PORT = os.getenv("POSTGRES_PORT", "5432")
+DB_NAME = os.getenv("POSTGRES_DB")
+
+DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+
+engine = create_engine(
+    DATABASE_URL
+)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+Base = declarative_base()
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+```
+
+Para que isso funcione localmente, criamos um arquivo `.env` na raiz do projeto:
+
+```
+# .env
+POSTGRES_USER=meu_usuario_dev
+POSTGRES_PASSWORD=minha_senha_super_secreta
+POSTGRES_HOST=db
+POSTGRES_PORT=5432
+POSTGRES_DB=escola_db
+```
+*Nota: O `POSTGRES_HOST` está como `db` porque esse será o nome do nosso serviço de banco de dados dentro da rede do Docker Compose.*
+
+## Passo 3: Orquestrando Tudo com Docker Compose
+
+Agora, a mágica da orquestração. Vamos configurar o `docker-compose.yml` para subir não apenas nossa API, mas também um contêiner com o banco de dados PostgreSQL.
+
+```yaml
+# /home/agnus/Documents/Pessoal/Alura/devOps/imersao-devops/docker-compose.yml
+services:
+  api:
+    build: .
+    container_name: api
+    ports: 
+      - "8000:8000"
+    volumes:
+      - .:/app
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+    env_file:
+      - .env # Carrega as variáveis de ambiente para a API
+    depends_on:
+      db:
+        condition: service_healthy # Garante que a API só inicie quando o DB estiver saudável
+
+  db:
+    image: postgres:13-alpine
+    container_name: postgres_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/ # Persiste os dados do banco
+    ports:
+      - "5432:5432"
+    env_file:
+      - .env # Usa as mesmas variáveis para configurar o banco
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+```
+
+### Pontos de Destaque no `docker-compose.yml`:
+- **Serviço `db`:** Usa a imagem oficial `postgres:13-alpine`. Ele carrega as variáveis do `.env` para se autoconfigurar, criando o banco de dados e o usuário na primeira inicialização.
+- **Volume `postgres_data`:** Garante que nossos dados não sejam perdidos quando os contêineres são recriados.
+- **`healthcheck`:** Uma adição crucial! Ele verifica se o PostgreSQL está realmente pronto para aceitar conexões antes de permitir que a API inicie.
+- **`depends_on` com `condition: service_healthy`:** Conecta o `healthcheck` do banco ao início da API, evitando erros de conexão durante a inicialização.
+
+## Passo 4: A Jornada do Build - Resolvendo o Erro `pg_config`
+
+Com tudo configurado, era hora de construir a imagem com `docker-compose up --build`. E então, o primeiro obstáculo:
+
+```
+ERROR: pg_config executable not found.
+```
+
+Esse erro acontece porque o `pip` não encontrou um binário pré-compilado (`wheel`) do `psycopg2` para a nossa imagem base (`python:3.11-alpine`) e tentou compilá-lo do zero. A imagem Alpine, por ser minimalista, não tem as ferramentas de compilação necessárias.
+
+A solução foi editar nosso `Dockerfile` para instalar essas dependências manualmente.
+
+```dockerfile
+# /home/agnus/Documents/Pessoal/Alura/devOps/imersao-devops/Dockerfile
+# Use a imagem oficial do Python na versão Alpine, que é extremamente leve.
+FROM python:3.11-alpine
+
+# Define o diretório de trabalho dentro do container
+WORKDIR /app
+
+# Copia o arquivo de requirements para o diretório de trabalho
+COPY requirements.txt .
+
+# Instala as dependências do sistema (para Alpine) necessárias para compilar o psycopg2
+# postgresql-dev: Contém os arquivos de desenvolvimento do PostgreSQL (incluindo pg_config)
+# build-base: Contém o compilador C (gcc) e outras ferramentas de build
+RUN apk add --no-cache postgresql-dev build-base
+
+# Instala as dependências do projeto usando pip
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copia todo o código da aplicação para o diretório de trabalho
+COPY . .
+
+# Expõe a porta 8000 para que a aplicação possa ser acessada
+EXPOSE 8000
+
+# Define o comando a ser executado quando o container for iniciado
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+```
+A linha `RUN apk add --no-cache postgresql-dev build-base` foi a chave. Ela usa o gerenciador de pacotes do Alpine (`apk`) para instalar as ferramentas de desenvolvimento do PostgreSQL e o compilador C. Com isso, o `pip` conseguiu compilar o `psycopg2` com sucesso.
+
+## Perguntas que Surgiram no Caminho
+
+Durante o processo, algumas dúvidas importantes foram esclarecidas:
+
+- **Preciso alterar meus `models.py`?** Não! Uma das maiores vantagens de um ORM como o SQLAlchemy é a abstração. Os modelos são definidos de forma agnóstica, e o SQLAlchemy, junto com o driver `psycopg2`, se encarrega de traduzir tudo para o SQL específico do PostgreSQL.
+
+- **Quem cria o banco de dados e as tabelas?** O **banco de dados** (`escola_db`) é criado pelo script de inicialização da imagem `postgres` do Docker, que lê a variável de ambiente `POSTGRES_DB`. As **tabelas** (`alunos`, `cursos`, etc.) são criadas pela nossa aplicação FastAPI na inicialização, graças à linha `Base.metadata.create_all(bind=engine)` no arquivo `app.py`.
+
+- **Por que um `Dockerfile` para a API, mas não para o Postgres?** Porque nossa API é um software customizado. Precisamos de uma "receita" (`Dockerfile`) para construir uma imagem que contenha nosso código e dependências. Já o PostgreSQL é um software padrão; podemos simplesmente usar a imagem oficial e pré-construída, como pegar um produto pronto da prateleira.
+
+## Passo 5: O Toque Final na Conexão - Resolvendo o Erro 'Connection Refused'
+
+Com o build funcionando, um novo desafio surgiu ao iniciar os contêineres:
+
+```
+connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused
+```
+
+Este é um erro clássico de rede no Docker. Dentro de um contêiner, `localhost` se refere ao próprio contêiner, e não a outros serviços na mesma rede Docker. Nossa API estava tentando se conectar a um banco de dados dentro de si mesma, onde não havia nenhum.
+
+A solução é usar o nome do serviço definido no `docker-compose.yml` como o hostname. No nosso caso, o serviço do banco de dados se chama `db`. Garantimos que nosso arquivo `.env` estava configurado corretamente para refletir isso:
+
+```
+# .env
+...
+POSTGRES_HOST=db
+...
+```
+
+Com essa alteração, a API passou a procurar pelo host `db`, que o Docker Compose resolve corretamente para o endereço IP do contêiner do PostgreSQL, estabelecendo a conexão com sucesso.
+
+## Passo 6: Bônus - Refatorando para um Código Mais Limpo (Princípio DRY)
+
+Com a aplicação totalmente funcional, identificamos uma oportunidade de melhoria no código. Em `routers/alunos.py`, a lógica para buscar um aluno pelo ID e verificar se ele existe estava repetida em três endpoints diferentes.
+
+Para seguir o princípio **DRY (Don't Repeat Yourself - Não se Repita)** e tornar o código mais limpo e fácil de manter, criamos uma função de dependência reutilizável no FastAPI.
+
+```python
+# /home/agnus/Documents/Pessoal/Alura/devOps/imersao-devops/routers/alunos.py
+
+# Função auxiliar para obter um aluno ou levantar uma exceção 404
+def get_aluno_or_404(aluno_id: int, db: Session = Depends(get_db)) -> ModelAluno:
+    db_aluno = db.query(ModelAluno).filter(ModelAluno.id == aluno_id).first()
+    if db_aluno is None:
+        raise HTTPException(status_code=404, detail="Aluno não encontrado")
+    return db_aluno
+
+# Exemplo de uso nos endpoints
+@alunos_router.get("/alunos/{aluno_id}", response_model=Aluno)
+def read_aluno(db_aluno: ModelAluno = Depends(get_aluno_or_404)):
+    return Aluno.from_orm(db_aluno)
+
+@alunos_router.put("/alunos/{aluno_id}", response_model=Aluno)
+def update_aluno(aluno: Aluno, db_aluno: ModelAluno = Depends(get_aluno_or_404), db: Session = Depends(get_db)):
+    # ... lógica de atualização ...
+
+@alunos_router.delete("/alunos/{aluno_id}", response_model=Aluno)
+def delete_aluno(db_aluno: ModelAluno = Depends(get_aluno_or_404), db: Session = Depends(get_db)):
+    # ... lógica de exclusão ...
+```
+
+Essa pequena refatoração centralizou a lógica de busca, limpou os endpoints e tornou o código mais robusto.
+
+## Conclusão
+
+A migração foi um sucesso! Passamos de uma configuração simples com SQLite para um ambiente de desenvolvimento robusto, containerizado e muito mais próximo de um ambiente de produção real.
+
+A jornada nos ensinou sobre:
+- Drivers de banco de dados em Python.
+- Gerenciamento seguro de credenciais com variáveis de ambiente.
+- Orquestração de múltiplos serviços com Docker Compose.
+- A importância dos `healthchecks` para a inicialização de serviços dependentes.
+- Como resolver problemas de compilação de pacotes em imagens Docker minimalistas como a Alpine.
+- Como a rede do Docker funciona e por que `localhost` não funciona entre contêineres.
+- Como refatorar código FastAPI usando dependências para evitar repetição (DRY).
+
+Com essa nova estrutura, o projeto está pronto para crescer com uma base de dados sólida e um ambiente de desenvolvimento confiável.
