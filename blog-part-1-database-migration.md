@@ -8,11 +8,65 @@ Welcome to the first deep-dive of our series! This post covers the foundational 
 
 The first step is to teach our SQLAlchemy-based application to "speak" PostgreSQL. This requires a specific database driver. We chose the most common and reliable one, `psycopg2`, and added `psycopg2-binary` to our `requirements.txt` to make it available to our application.
 
+```
+# requirements.txt
+...
+psycopg2-binary==2.9.2
+python-dotenv==1.1.1
+```
+
 ### Secure Connection Configuration
 
 With the driver in place, we shifted from pointing to a local file to a database server. To do this securely and avoid hard-coding credentials, we adopted environment variables, managed by `python-dotenv`.
 
 Our `database.py` was updated to build the `DATABASE_URL` dynamically from variables like `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_HOST`, which are loaded from a `.env` file. This is a critical security practice.
+
+
+```python
+# /home/agnus/Documents/Pessoal/Alura/devOps/imersao-devops/database.py
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv
+import os
+
+# Carrega as variáveis de ambiente do arquivo .env
+load_dotenv()
+
+# Configuração da URL de conexão com o PostgreSQL a partir das variáveis de ambiente
+DB_USER = os.getenv("POSTGRES_USER")
+DB_PASSWORD = os.getenv("POSTGRES_PASSWORD")
+DB_HOST = os.getenv("POSTGRES_HOST", "localhost")
+DB_PORT = os.getenv("POSTGRES_PORT", "5432")
+DB_NAME = os.getenv("POSTGRES_DB")
+
+DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+
+engine = create_engine(
+    DATABASE_URL
+)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+Base = declarative_base()
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+```
+Para que isso funcione localmente, criamos um arquivo `.env` na raiz do projeto:
+
+```
+# .env
+POSTGRES_USER=meu_usuario_dev
+POSTGRES_PASSWORD=minha_senha_super_secreta
+POSTGRES_HOST=db
+POSTGRES_PORT=5432
+POSTGRES_DB=escola_db
+```
+*Nota: O `POSTGRES_HOST` está como `db` porque esse será o nome do nosso serviço de banco de dados dentro da rede do Docker Compose.*
 
 ### Orchestration with Docker Compose
 

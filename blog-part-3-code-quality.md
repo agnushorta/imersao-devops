@@ -20,6 +20,31 @@ To solve this, we leveraged one of FastAPI's most powerful features: **Dependenc
 
 By defining this function and using it as a dependency in our path operations, we delegate the task of fetching and validating the student to FastAPI. The endpoint function only runs if the dependency is successful (i.e., the student is found), and it receives the fetched student object directly as an argument.
 
+
+```python
+# /home/agnus/Documents/Pessoal/Alura/devOps/imersao-devops/routers/alunos.py
+
+# Função auxiliar para obter um aluno ou levantar uma exceção 404
+def get_aluno_or_404(aluno_id: int, db: Session = Depends(get_db)) -> ModelAluno:
+    db_aluno = db.query(ModelAluno).filter(ModelAluno.id == aluno_id).first()
+    if db_aluno is None:
+        raise HTTPException(status_code=404, detail="Aluno não encontrado")
+    return db_aluno
+
+# Exemplo de uso nos endpoints
+@alunos_router.get("/alunos/{aluno_id}", response_model=Aluno)
+def read_aluno(db_aluno: ModelAluno = Depends(get_aluno_or_404)):
+    return Aluno.from_orm(db_aluno)
+
+@alunos_router.put("/alunos/{aluno_id}", response_model=Aluno)
+def update_aluno(aluno: Aluno, db_aluno: ModelAluno = Depends(get_aluno_or_404), db: Session = Depends(get_db)):
+    # ... lógica de atualização ...
+
+@alunos_router.delete("/alunos/{aluno_id}", response_model=Aluno)
+def delete_aluno(db_aluno: ModelAluno = Depends(get_aluno_or_404), db: Session = Depends(get_db)):
+    # ... lógica de exclusão ...
+```
+
 This refactoring centralized our data access logic, making our endpoints cleaner, more declarative, and significantly easier to read and maintain.
 
 ---

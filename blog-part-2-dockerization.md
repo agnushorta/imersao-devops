@@ -21,6 +21,31 @@ To solve this, we implemented a powerful Docker feature: **multi-stage builds**.
 1.  **Stage 1 (The "builder"):** We defined a temporary build environment based on `python:3.11-alpine`. In this stage, we installed all the heavy build tools and compiled our Python dependencies.
 2.  **Stage 2 (The "final" image):** We started fresh with a new, clean `python:3.11-alpine` image. Into this pristine environment, we installed *only* the lightweight runtime library for PostgreSQL (`libpq`). Then, we used the `COPY --from=builder` command to copy the pre-compiled Python packages from the "builder" stage and our application code.
 
+
+```dockerfile
+# /home/agnus/Documents/Pessoal/Alura/devOps/imersao-devops/Dockerfile
+
+# --- Estágio 1: O Construtor (Builder) ---
+FROM python:3.11-alpine AS builder
+WORKDIR /app
+RUN apk add --no-cache postgresql-dev build-base
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# --- Estágio 2: A Imagem Final ---
+FROM python:3.11-alpine
+WORKDIR /app
+# Instala APENAS as dependências de tempo de execução
+RUN apk add --no-cache libpq
+# Copia as dependências Python instaladas do estágio "builder"
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+# Copia o código da aplicação
+COPY . .
+EXPOSE 8000
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+```
+
 This technique resulted in a final image that was drastically smaller and more secure, as it contained only the bare essentials required to run the application.
 
 ---
