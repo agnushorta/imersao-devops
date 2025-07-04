@@ -1,5 +1,6 @@
 import logging
 from logging.config import dictConfig
+import os
 
 class JsonFormatter(logging.Formatter):
     """
@@ -18,6 +19,11 @@ class JsonFormatter(logging.Formatter):
         }
         return str(log_record).replace("'", '"') # Simple JSON conversion
 
+# Read log level from environment variable, default to INFO
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+if log_level not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
+    log_level = "INFO"
+
 LOGGING_CONFIG = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -34,7 +40,7 @@ LOGGING_CONFIG = {
         },
     },
     "root": {
-        "level": "INFO",
+        "level": log_level,
         "handlers": ["console"],
     },
 }
