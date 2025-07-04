@@ -5,12 +5,17 @@ from logging_config import setup_logging, request_id_var
 from routers.alunos import alunos_router
 from routers.cursos import cursos_router
 from routers.matriculas import matriculas_router
+import structlog
 import uuid
 
 # Setup custom logging
 setup_logging()
 
-Base.metadata.create_all(bind=engine)
+# It's better to handle database schema creation and migrations with a dedicated
+# tool like Alembic, rather than on application startup.
+# Base.metadata.create_all(bind=engine)
+
+logger = structlog.get_logger(__name__)
 
 app = FastAPI(
     title="API de Gestão Escolar", 
@@ -33,6 +38,8 @@ async def add_request_id(request: Request, call_next):
     
     # Store the request ID in the context variable
     token = request_id_var.set(request_id)
+    
+    logger.info("Request started", method=request.method, url=str(request.url))
     
     response = await call_next(request)
     

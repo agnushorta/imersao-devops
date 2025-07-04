@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Union
-import logging
+import structlog
 from schemas import Aluno
 from models import Aluno as ModelAluno
 from database import get_db
 
-# Get a logger instance for this module
-logger = logging.getLogger(__name__)
+# Get a structlog logger instance
+logger = structlog.get_logger(__name__)
 
 alunos_router = APIRouter()
 
@@ -59,7 +59,11 @@ def create_aluno(aluno: Aluno, db: Session = Depends(get_db)):
     db.add(db_aluno)
     db.commit()
     db.refresh(db_aluno)
-    logger.info(f"Student created successfully with ID: {db_aluno.id}")
+    logger.info(
+        "Student created successfully", 
+        student_id=db_aluno.id, 
+        student_email=db_aluno.email
+    )
     return Aluno.from_orm(db_aluno)
 
 @alunos_router.put("/alunos/{aluno_id}", response_model=Aluno)
