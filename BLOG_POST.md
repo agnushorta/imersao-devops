@@ -379,6 +379,29 @@ def create_aluno(aluno: Aluno, db: Session = Depends(get_db)):
 
 Agora, todos os logs da aplicação, incluindo os logs de acesso do Uvicorn, serão exibidos no console do Docker em um formato JSON limpo e estruturado, pronto para ser coletado e analisado.
 
+## Passo 9: Bônus - Níveis de Log Dinâmicos para Desenvolvimento e Produção
+
+Uma prática essencial é ter níveis de log diferentes para cada ambiente. Em desenvolvimento, queremos o máximo de detalhes (`DEBUG`), mas em produção, queremos menos ruído e logs mais concisos (`INFO` ou `WARNING`) para reduzir custos e facilitar a identificação de problemas reais.
+
+Conseguimos isso tornando nossa configuração de logging dinâmica, lendo o nível de log de uma variável de ambiente.
+
+Alteramos o `logging_config.py` para ler a variável `LOG_LEVEL`:
+
+```python
+# /home/agnus/Documents/Pessoal/Alura/devOps/imersao-devops/logging_config.py
+import os
+...
+# Read log level from environment variable, default to INFO
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+...
+LOGGING_CONFIG = {
+    ...
+    "root": { "level": log_level, "handlers": ["console"] },
+}
+```
+
+Agora, para desenvolvimento, simplesmente adicionamos `LOG_LEVEL=DEBUG` ao nosso arquivo `.env`. Para produção, podemos omitir a variável (usando o padrão `INFO`) ou configurá-la para `INFO` ou `WARNING`, nos dando controle total sobre a verbosidade dos logs em cada ambiente.
+
 ## Conclusão
 
 A migração foi um sucesso! Passamos de uma configuração simples com SQLite para um ambiente de desenvolvimento robusto, containerizado e muito mais próximo de um ambiente de produção real.
@@ -393,5 +416,6 @@ A jornada nos ensinou sobre:
 - Como refatorar código FastAPI usando dependências para evitar repetição (DRY).
 - Como otimizar o tamanho e a segurança das imagens Docker com a técnica de multi-stage builds.
 - A importância da observabilidade e como implementar logging estruturado (JSON) para ambientes de produção.
+- Como configurar níveis de log dinâmicos para diferentes ambientes usando variáveis de ambiente.
 
 Com essa nova estrutura, o projeto está pronto para crescer com uma base de dados sólida e um ambiente de desenvolvimento confiável.
