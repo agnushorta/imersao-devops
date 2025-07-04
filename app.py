@@ -1,9 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import Response
 from database import engine, Base
-from logging_config import setup_logging
+from logging_config import setup_logging, request_id_var
 from routers.alunos import alunos_router
 from routers.cursos import cursos_router
 from routers.matriculas import matriculas_router
+import uuid
 
 # Setup custom logging
 setup_logging()
@@ -18,6 +20,29 @@ app = FastAPI(
     """, 
     version="1.0.0",
 )
+
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    """
+    Middleware to add a unique request ID to each incoming request.
+    The ID is taken from the 'X-Request-ID' header if present,
+    otherwise a new UUID is generated.
+    """
+    # Use existing request ID from header or generate a new one
+    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    
+    # Store the request ID in the context variable
+    token = request_id_var.set(request_id)
+    
+    response = await call_next(request)
+    
+    # Add the request ID to the response headers for client-side tracking
+    response.headers["X-Request-ID"] = request_id
+    
+    # Reset the context variable
+    request_id_var.reset(token)
+    
+    return response
 
 app.include_router(alunos_router, tags=["alunos"])
 app.include_router(cursos_router, tags=["cursos"])
