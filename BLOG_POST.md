@@ -260,6 +260,125 @@ CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 O resultado é uma imagem Docker final drasticamente menor, mais segura e mais rápida para ser distribuída, contendo apenas o essencial para a execução da nossa API.
 
+## Passo 8: Implementando Logging Estruturado para Observabilidade
+
+Uma aplicação pronta para produção precisa ser observável. Precisamos de uma maneira de entender o que ela está fazendo, diagnosticar erros e monitorar seu comportamento. É aqui que entra o logging.
+
+Para nossa aplicação em contêiner, a melhor prática é enviar logs para a saída padrão (`stdout`) em um **formato estruturado (JSON)**. Isso permite que ferramentas de agregação de logs (como ELK Stack, Datadog, Grafana Loki) capturem, processem e analisem esses logs facilmente.
+
+### Entendendo os Componentes do Módulo `logging` do Python
+
+Antes de implementar, é crucial entender os quatro pilares do módulo `logging`:
+
+1.  **Loggers (Os Emissores):** Objetos que usamos em nosso código para enviar mensagens (`logger.info(...)`).
+2.  **Handlers (Os Destinos):** Decidem para onde as mensagens vão (console, arquivo, rede, etc.).
+3.  **Formatters (Os Estilistas):** Definem o formato da mensagem de log (texto simples, JSON, etc.).
+4.  **Levels (Os Filtros):** Controlam a severidade das mensagens a serem processadas (`DEBUG`, `INFO`, `WARNING`, `ERROR`).
+
+O fluxo é simples: um **Logger** emite uma mensagem, que é filtrada por seu **Level**. Se passar, ela é enviada para um **Handler**, que usa um **Formatter** para estilizar a mensagem antes de enviá-la ao destino final.
+
+### Analisando a Configuração na Prática
+
+Para entender como essas peças se conectam, vamos analisar nosso próprio arquivo `logging_config.py`:
+
+```python
+LOGGING_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {  # <-- 3. FORMATTERS (Os Estilistas)
+        "json": { "()": JsonFormatter },
+    },
+    "handlers": {    # <-- 2. HANDLERS (Os Destinos)
+        "console": {
+            "class": "logging.StreamHandler", "formatter": "json", "stream": "ext://sys.stdout",
+        },
+    },
+    "root": {        # <-- 1. LOGGER (O Emissor Principal)
+        "level": "INFO", "handlers": ["console"], # <-- 4. LEVEL (O Filtro)
+    },
+}
+```
+
+-   **Logger (`root`):** A seção `root` define o comportamento do logger principal. Qualquer logger criado com `logging.getLogger()` herdará essa configuração. A linha `"handlers": ["console"]` conecta o logger ao nosso handler, dizendo: "Envie todas as mensagens processadas para o handler chamado `console`".
+-   **Handler (`console`):** Este handler é configurado para enviar os logs para o console (`stdout`). Ele usa o `"formatter": "json"` para estilizar a mensagem, conectando-o ao nosso formatador customizado.
+-   **Formatter (`json`):** Aqui, instruímos o Python a usar nossa classe `JsonFormatter` para transformar cada registro de log em uma string JSON.
+-   **Level (`INFO`):** Este é o filtro de severidade. O logger `root` só processará mensagens de nível `INFO` ou superior (`WARNING`, `ERROR`, `CRITICAL`), ignorando as de `DEBUG`.
+
+### Implementando o Logging Estruturado
+
+Primeiro, criamos um novo arquivo `logging_config.py` para centralizar nossa configuração:
+
+```python
+# /home/agnus/Documents/Pessoal/Alura/devOps/imersao-devops/logging_config.py
+import logging
+from logging.config import dictConfig
+
+class JsonFormatter(logging.Formatter):
+    """Custom formatter to output logs in JSON format."""
+    def format(self, record):
+        log_record = {
+            "timestamp": self.formatTime(record, self.datefmt),
+            "level": record.levelname,
+            "message": record.getMessage(),
+            "name": record.name,
+            "pathname": record.pathname,
+            "lineno": record.lineno,
+            "funcName": record.funcName,
+        }
+        return str(log_record).replace("'", '"')
+
+LOGGING_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": { "json": { "()": JsonFormatter } },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "json",
+            "stream": "ext://sys.stdout",
+        },
+    },
+    "root": { "level": "INFO", "handlers": ["console"] },
+}
+
+def setup_logging():
+    dictConfig(LOGGING_CONFIG)
+```
+
+Em seguida, integramos essa configuração em nosso `app.py` para que ela seja carregada na inicialização:
+
+```python
+# /home/agnus/Documents/Pessoal/Alura/devOps/imersao-devops/app.py
+...
+from logging_config import setup_logging
+...
+# Setup custom logging
+setup_logging()
+...
+```
+
+Com isso, podemos usar o logger em qualquer lugar da nossa aplicação. Por exemplo, para registrar a criação de um novo aluno em `routers/alunos.py`:
+
+```python
+# /home/agnus/Documents/Pessoal/Alura/devOps/imersao-devops/routers/alunos.py
+import logging
+
+# Get a logger instance for this module
+logger = logging.getLogger(__name__)
+
+...
+
+@alunos_router.post("/alunos", response_model=Aluno)
+def create_aluno(aluno: Aluno, db: Session = Depends(get_db)):
+    ...
+    db.commit()
+    db.refresh(db_aluno)
+    logger.info(f"Student created successfully with ID: {db_aluno.id}")
+    return Aluno.from_orm(db_aluno)
+```
+
+Agora, todos os logs da aplicação, incluindo os logs de acesso do Uvicorn, serão exibidos no console do Docker em um formato JSON limpo e estruturado, pronto para ser coletado e analisado.
+
 ## Conclusão
 
 A migração foi um sucesso! Passamos de uma configuração simples com SQLite para um ambiente de desenvolvimento robusto, containerizado e muito mais próximo de um ambiente de produção real.
@@ -273,5 +392,6 @@ A jornada nos ensinou sobre:
 - Como a rede do Docker funciona e por que `localhost` não funciona entre contêineres.
 - Como refatorar código FastAPI usando dependências para evitar repetição (DRY).
 - Como otimizar o tamanho e a segurança das imagens Docker com a técnica de multi-stage builds.
+- A importância da observabilidade e como implementar logging estruturado (JSON) para ambientes de produção.
 
 Com essa nova estrutura, o projeto está pronto para crescer com uma base de dados sólida e um ambiente de desenvolvimento confiável.
