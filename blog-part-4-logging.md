@@ -38,6 +38,14 @@ logger.info(
 
 To have detailed `DEBUG` logs in development but concise `INFO` logs in production, we made the log level dynamic. Our `logging_config.py` now reads the `LOG_LEVEL` from an environment variable, defaulting to `INFO` if not set.
 
+### Console vs. JSON: Environment-Specific Formatting
+
+Just as we need different log *levels* for different environments, we also benefit from different log *formats*. While JSON is perfect for machines, it's hard for humans to read. For development, a colorized, human-readable format is far superior.
+
+`structlog` makes this trivial. By reading a new `LOG_FORMATTER` environment variable, we can conditionally set the final processor in our pipeline. If `LOG_FORMATTER=console`, we use `structlog.dev.ConsoleRenderer(colors=True)`. Otherwise, we default to the production-safe `structlog.processors.JSONRenderer()`. This gives us the best of both worlds: a great developer experience and machine-readable logs for production, with no code changes needed to switch between them.
+
+To have detailed `DEBUG` logs in development but concise `INFO` logs in production, we made the log level dynamic. Our `logging_config.py` now reads the `LOG_LEVEL` from an environment variable, defaulting to `INFO` if not set.
+
 This allows us to control log verbosity for each environment simply by setting a variable (e.g., `LOG_LEVEL=DEBUG` in our `.env` file for development) without ever changing the code.
 
 ### Tracing Requests with a Correlation ID

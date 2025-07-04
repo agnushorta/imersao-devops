@@ -21,6 +21,7 @@ def setup_logging():
     Configure structlog to format logs as JSON and integrate with standard logging.
     """
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    log_formatter = os.getenv("LOG_FORMATTER", "json").lower()
     
     # These processors are shared between development and production
     shared_processors: list[Processor] = [
@@ -35,10 +36,15 @@ def setup_logging():
         structlog.processors.UnicodeDecoder(),
     ]
 
+    # Determine the final renderer based on the environment variable
+    if log_formatter == "console":
+        final_processor = structlog.dev.ConsoleRenderer(colors=True)
+    else:  # Default to JSON for production
+        final_processor = structlog.processors.JSONRenderer()
+
     structlog.configure(
         processors=shared_processors + [
-            # This is the final processor, which renders the log as JSON.
-            structlog.processors.JSONRenderer(),
+            final_processor,
         ],
         # This wrapper class is what makes standard loggers (like uvicorn's)
         # use the structlog pipeline.
