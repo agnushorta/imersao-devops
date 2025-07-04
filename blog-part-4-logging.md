@@ -8,19 +8,24 @@ Welcome to the final part of our series! With a functional, containerized, and c
 
 For containerized applications, the best practice is to log to standard output (`stdout`) in a **structured (JSON)** format. This allows modern log aggregation tools (like ELK Stack, Datadog, or Grafana Loki) to easily ingest, parse, and index the logs, making them searchable and analyzable.
 
-While Python's built-in `logging` module can be configured for this, a library called **`structlog`** makes structured logging significantly more powerful and easier to manage. It enhances the standard logging with a declarative **processor pipeline**. Each processor is a simple function that enriches the log event, with the final processor rendering it as JSON.
+While Python's built-in `logging` module can be configured for this, a library called **`structlog`** makes structured logging significantly more powerful and easier to manage. It enhances the standard logging with a declarative **processor pipeline**.
 
-We refactored our `logging_config.py` to use `structlog`. The new configuration defines a chain of processors to:
--   Add context variables (like our request ID).
--   Add the log level and logger name.
--   Add a timestamp.
--   Render the final output as a clean JSON object.
+#### The Processor Pipeline: An Assembly Line for Logs
 
-This approach is more flexible and readable than managing formatters and filters manually. When logging, our code is also cleaner:
+Instead of formatting a string, `structlog` creates a log "event" (a dictionary) and sends it down a pipeline of processors. Each processor is a simple function that receives the event dictionary, adds or modifies data, and passes it to the next.
+
+Our pipeline in `logging_config.py` does the following for every log event:
+1.  **`add_request_id`**: Our custom processor injects the unique request ID from a context variable.
+2.  **`add_logger_name` & `add_log_level`**: These add the logger's name (e.g., `routers.alunos`) and the log's severity (e.g., `info`).
+3.  **`TimeStamper`**: Adds a machine-readable ISO 8601 timestamp.
+4.  **`JSONRenderer`**: The final processor in the chain takes the fully enriched dictionary and renders it as a single JSON string.
+
+This approach is more flexible and readable than managing a single, complex formatter. When logging, our code also becomes cleaner and more data-centric:
 
 ```python
 # Instead of this:
 # logger.info(f"Student created successfully with ID: {db_aluno.id}")
+
 # We do this:
 logger.info(
     "Student created successfully", 
