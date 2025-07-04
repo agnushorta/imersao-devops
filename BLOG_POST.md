@@ -402,6 +402,30 @@ LOGGING_CONFIG = {
 
 Agora, para desenvolvimento, simplesmente adicionamos `LOG_LEVEL=DEBUG` ao nosso arquivo `.env`. Para produção, podemos omitir a variável (usando o padrão `INFO`) ou configurá-la para `INFO` ou `WARNING`, nos dando controle total sobre a verbosidade dos logs em cada ambiente.
 
+## Passo 10: Rastreamento de Requisições com um Correlation ID
+
+Em sistemas complexos, ser capaz de rastrear uma única requisição através de todos os seus logs é fundamental. Conseguimos isso adicionando um "Correlation ID" (ou Request ID) único a cada log gerado durante o processamento de uma requisição, usando um dos recursos mais poderosos de frameworks web: o **Middleware**.
+
+### O que é um Middleware?
+
+Um middleware funciona como uma camada em uma cebola que envolve o código da sua rota. Quando uma requisição chega, ela viaja "para dentro" através de cada middleware, que pode inspecioná-la ou modificá-la. Após a rota gerar uma resposta, ela viaja "para fora" pelas mesmas camadas na ordem inversa. Isso nos permite executar código antes e depois de cada requisição de forma centralizada.
+
+Implementamos isso usando três componentes do FastAPI e Python:
+
+1.  **Middleware:** Para interceptar cada requisição, gerar um ID único e armazená-lo.
+2.  **`contextvars`:** Para armazenar o ID de forma segura no contexto da requisição, mesmo em um ambiente assíncrono.
+3.  **`logging.Filter`:** Para injetar automaticamente o ID armazenado em cada registro de log.
+
+Adicionamos um middleware ao `app.py` usando o decorador `@app.middleware("http")` para gerenciar o ciclo de vida do ID e um `RequestIdFilter` ao `logging_config.py` para enriquecer os logs.
+
+O resultado é que cada log agora inclui um campo `request_id`, permitindo-nos filtrar e visualizar a jornada completa de uma única transação:
+
+```json
+{
+  "timestamp": "...", "level": "INFO", "message": "Student created successfully...", "name": "routers.alunos", "request_id": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+}
+```
+
 ## Conclusão
 
 A migração foi um sucesso! Passamos de uma configuração simples com SQLite para um ambiente de desenvolvimento robusto, containerizado e muito mais próximo de um ambiente de produção real.
@@ -417,5 +441,6 @@ A jornada nos ensinou sobre:
 - Como otimizar o tamanho e a segurança das imagens Docker com a técnica de multi-stage builds.
 - A importância da observabilidade e como implementar logging estruturado (JSON) para ambientes de produção.
 - Como configurar níveis de log dinâmicos para diferentes ambientes usando variáveis de ambiente.
+- Como implementar o rastreamento de ponta a ponta de requisições usando um Correlation ID.
 
 Com essa nova estrutura, o projeto está pronto para crescer com uma base de dados sólida e um ambiente de desenvolvimento confiável.
