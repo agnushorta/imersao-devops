@@ -10,5 +10,6 @@ This series of posts will cover:
 *   **Part 2: Dockerization and Optimization:** How we built and optimized the Docker image for our API using multi-stage builds.
 *   **Part 3: Code Quality and Refactoring:** Improving the application's codebase by applying the DRY principle.
 *   **Part 4: Production-Ready Logging:** Implementing a robust, structured logging system with dynamic levels and request tracing.
+*   **Part 5: Evolving Your Database with Alembic Migrations:** Managing database schema changes systematically with a powerful migration tool.
 
-Follow along as we transform this application step-by-step!
+Follow along as we transform this application step-by-step! To make setup easier, the project includes a `.env.example` file with all the necessary environment variables. Simply copy it to `.env` to get started quickly.
