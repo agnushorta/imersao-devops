@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr
-from typing import List
+from typing import List, Optional
+from datetime import date
 
 class Matricula(BaseModel):
     aluno_id: int
@@ -15,6 +16,7 @@ class Aluno(BaseModel):
     nome: str
     email: EmailStr
     telefone: str
+    data_nascimento: Optional[date] = None
 
     class Config:
         from_attributes = True
