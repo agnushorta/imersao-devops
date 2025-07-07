@@ -16,5 +16,6 @@ typing_extensions==4.13.2
 uvicorn==0.34.2
 psycopg2-binary==2.9.2
 python-dotenv==1.1.1
+alembic==1.13.1
 structlog==24.1.0
 colorama==0.4.6

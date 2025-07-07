@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, Table
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, Table, Date
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -19,6 +19,7 @@ class Aluno(Base):
     nome = Column(String, nullable=False)
     email = Column(String, nullable=False)
     telefone = Column(String, nullable=False)
+    data_nascimento = Column(Date, nullable=True)
 
     matriculas = relationship("Matricula", back_populates="aluno")
 
