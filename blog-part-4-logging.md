@@ -8,39 +8,41 @@ Welcome to the final part of our series! With a functional, containerized, and c
 
 For containerized applications, the best practice is to log to standard output (`stdout`) in a **structured (JSON)** format. This allows modern log aggregation tools (like ELK Stack, Datadog, or Grafana Loki) to easily ingest, parse, and index the logs, making them searchable and analyzable.
 
-We used Python's built-in `logging` module, which is built on four key components:
--   **Loggers:** The entry points in our code (`logging.getLogger()`) that emit messages.
--   **Handlers:** The destinations for logs (e.g., `StreamHandler` for the console).
--   **Formatters:** The stylists for log messages. We created a custom `JsonFormatter` to ensure all output is JSON.
--   **Levels:** The severity filters (`DEBUG`, `INFO`, `WARNING`, etc.).
+While Python's built-in `logging` module can be configured for this, a library called **`structlog`** makes structured logging significantly more powerful and easier to manage. It enhances the standard logging with a declarative **processor pipeline**.
 
-The flow is simple: a **Logger** emits a message, which is filtered by its **Level**. If it passes, it's sent to a **Handler**, which uses a **Formatter** to style the message before sending it to its final destination.
+#### The Processor Pipeline: An Assembly Line for Logs
 
-#### Analyzing the Configuration in Practice
+Instead of formatting a string, `structlog` creates a log "event" (a dictionary) and sends it down a pipeline of processors. Each processor is a simple function that receives the event dictionary, adds or modifies data, and passes it to the next.
 
-To see how these pieces connect, let's dissect our own `logging_config.py`:
+Our pipeline in `logging_config.py` does the following for every log event:
+1.  **`add_request_id`**: Our custom processor injects the unique request ID from a context variable.
+2.  **`add_logger_name` & `add_log_level`**: These add the logger's name (e.g., `routers.alunos`) and the log's severity (e.g., `info`).
+3.  **`TimeStamper`**: Adds a machine-readable ISO 8601 timestamp.
+4.  **`JSONRenderer`**: The final processor in the chain takes the fully enriched dictionary and renders it as a single JSON string.
+
+This approach is more flexible and readable than managing a single, complex formatter. When logging, our code also becomes cleaner and more data-centric:
 
 ```python
-LOGGING_CONFIG = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": { "json": { "()": JsonFormatter } },
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler", "formatter": "json", "stream": "ext://sys.stdout",
-        },
-    },
-    "root": { "level": "INFO", "handlers": ["console"] },
-}
+# Instead of this:
+# logger.info(f"Student created successfully with ID: {db_aluno.id}")
+
+# We do this:
+logger.info(
+    "Student created successfully", 
+    student_id=db_aluno.id, 
+    student_email=db_aluno.email
+)
 ```
 
--   **Logger (`root`):** The `root` section defines the main logger's behavior. The line `"handlers": ["console"]` connects it to our handler, telling it: "Send all processed messages to the handler named `console`."
--   **Handler (`console`):** This handler is configured to send logs to the console (`stdout`). It uses `"formatter": "json"` to style the message, linking it to our custom formatter.
--   **Formatter (`json`):** Here, we instruct Python to use our `JsonFormatter` class to transform each log record into a JSON string.
--   **Level (`INFO`):** This is the severity filter. The `root` logger will only process messages of level `INFO` or higher, ignoring any `DEBUG` messages.
-
-
 ### Dynamic Log Levels for Different Environments
+
+To have detailed `DEBUG` logs in development but concise `INFO` logs in production, we made the log level dynamic. Our `logging_config.py` now reads the `LOG_LEVEL` from an environment variable, defaulting to `INFO` if not set.
+
+### Console vs. JSON: Environment-Specific Formatting
+
+Just as we need different log *levels* for different environments, we also benefit from different log *formats*. While JSON is perfect for machines, it's hard for humans to read. For development, a colorized, human-readable format is far superior.
+
+`structlog` makes this trivial. By reading a new `LOG_FORMATTER` environment variable, we can conditionally set the final processor in our pipeline. If `LOG_FORMATTER=console`, we use `structlog.dev.ConsoleRenderer(colors=True)`. Otherwise, we default to the production-safe `structlog.processors.JSONRenderer()`. This gives us the best of both worlds: a great developer experience and machine-readable logs for production, with no code changes needed to switch between them.
 
 To have detailed `DEBUG` logs in development but concise `INFO` logs in production, we made the log level dynamic. Our `logging_config.py` now reads the `LOG_LEVEL` from an environment variable, defaulting to `INFO` if not set.
 
