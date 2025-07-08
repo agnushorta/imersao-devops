@@ -11,5 +11,12 @@ This series of posts will cover:
 *   **Part 3: Code Quality and Refactoring:** Improving the application's codebase by applying the DRY principle.
 *   **Part 4: Production-Ready Logging:** Implementing a robust, structured logging system with dynamic levels and request tracing.
 *   **Part 5: Evolving Your Database with Alembic Migrations:** Managing database schema changes systematically with a powerful migration tool.
+*   **Part 6: Securing the API with JWT Authentication:** Implementing a modern, secure authentication system using JSON Web Tokens.
 
 Follow along as we transform this application step-by-step! To make setup easier, the project includes a `.env.example` file with all the necessary environment variables. Simply copy it to `.env` to get started quickly.
+
+---
+
+### Want to understand the "Why"?
+
+Alongside this implementation guide, we have a parallel series of **Technology Deep Dives** that explores the core concepts and architectural decisions behind our choices.
