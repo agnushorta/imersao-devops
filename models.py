@@ -20,7 +20,7 @@ class Aluno(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     telefone = Column(String, nullable=False)
     data_nascimento = Column(Date, nullable=True)
-    hashed_password = Column(String, nullable=False)
+    hashed_password = Column(String, nullable=True)
 
     matriculas = relationship("Matricula", back_populates="aluno")
 
