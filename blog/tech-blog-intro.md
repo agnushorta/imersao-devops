@@ -8,6 +8,10 @@ Here, we'll dive deep into the core concepts, compare alternatives, and understa
 
 *   **Part 1: A Guide to Modern API Authentication (JWT, RS256, and Key Management)**
 *   **Part 2: The Art of Observability - A Deep Dive into Application Logging**
+*   **Part 3: A Arte da Containerização com Docker e Docker Compose**
+*   **Part 4: Versioning Your Database Like Code with Alembic**
+*   **Part 5: The Power of Object-Relational Mapping (ORM) with SQLAlchemy**
+*   **Part 6: A Arquitetura em Camadas de uma API Robusta**
 
 ---
 
