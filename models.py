@@ -17,9 +17,10 @@ class Aluno(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     nome = Column(String, nullable=False)
-    email = Column(String, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)
     telefone = Column(String, nullable=False)
     data_nascimento = Column(Date, nullable=True)
+    hashed_password = Column(String, nullable=False)
 
     matriculas = relationship("Matricula", back_populates="aluno")
 
