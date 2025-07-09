@@ -5,6 +5,8 @@ from logging_config import setup_logging, request_id_var
 from routers.alunos import alunos_router
 from routers.cursos import cursos_router
 from routers.matriculas import matriculas_router
+from routers.users import users_router
+
 import structlog
 import uuid
 
@@ -54,3 +56,5 @@ async def add_request_id(request: Request, call_next):
 app.include_router(alunos_router, tags=["alunos"])
 app.include_router(cursos_router, tags=["cursos"])
 app.include_router(matriculas_router, tags=["matriculas"])
+app.include_router(users_router, tags=["Usuários"])
+
