@@ -1,10 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+import structlog
 
-import routers.auth as auth
+import auth
 import schemas
 from database import get_db
 from models import Aluno as UserModel
+
+# Get a structlog logger instance
+logger = structlog.get_logger(__name__)
 
 users_router = APIRouter()
 
@@ -23,5 +27,9 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+    logger.info(
+        "User created successfully", 
+        user_id=db_user.id, 
+        user_email=db_user.email
+    )
     return db_user
-
