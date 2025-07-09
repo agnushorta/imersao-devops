@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Union
 import structlog
+
+import auth
 from schemas import Aluno
 from models import Aluno as ModelAluno
 from database import get_db
@@ -23,7 +25,9 @@ def get_aluno_or_404(aluno_id: int, db: Session = Depends(get_db)) -> ModelAluno
     return db_aluno
 
 @alunos_router.get("/alunos", response_model=List[Aluno])
-def read_alunos(db: Session = Depends(get_db)):
+def read_alunos(
+    db: Session = Depends(get_db), current_user: Aluno = Depends(auth.get_current_active_user)
+):
     """
     Retorna uma lista de todos os alunos cadastrados.
 
