@@ -29,6 +29,14 @@ class Matricula(BaseModel):
 
 Matriculas = List[Matricula]
 
+class AlunoCreate(BaseModel):
+    nome: str
+    email: EmailStr
+    telefone: str
+    data_nascimento: Optional[date] = None
+
+    class Config:
+        from_attributes = True
 class Aluno(BaseModel):
     id: int
     nome: str

@@ -4,7 +4,7 @@ from typing import List, Union
 import structlog
 
 import auth
-from schemas import Aluno
+from schemas import Aluno, AlunoCreate
 from models import Aluno as ModelAluno
 from database import get_db
 
@@ -48,8 +48,8 @@ def read_aluno(db_aluno: ModelAluno = Depends(get_aluno_or_404)):
     """
     return Aluno.from_orm(db_aluno)
 
-@alunos_router.post("/alunos", response_model=Aluno)
-def create_aluno(aluno: Aluno, db: Session = Depends(get_db)):
+@alunos_router.post("/alunos", response_model=Aluno, status_code=201)
+def create_aluno(aluno: AlunoCreate, db: Session = Depends(get_db)):
     """
     Cria um novo aluno com os dados fornecidos.
 
@@ -59,7 +59,12 @@ def create_aluno(aluno: Aluno, db: Session = Depends(get_db)):
     Returns:
         Aluno: aluno criado.
     """ 
-    db_aluno = ModelAluno(**aluno.dict(exclude={"id"})) 
+    db_aluno_exists = db.query(ModelAluno).filter(ModelAluno.email == aluno.email).first()
+    if db_aluno_exists:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    # Cria um Aluno sem senha. O campo hashed_password será NULL.
+    db_aluno = ModelAluno(**aluno.dict()) 
     db.add(db_aluno)
     db.commit()
     db.refresh(db_aluno)
